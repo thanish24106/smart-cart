@@ -1,0 +1,887 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SmartCart — Operator Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --surface: #12121a;
+    --surface2: #1c1c2a;
+    --border: #2a2a3f;
+    --accent: #00e5ff;
+    --accent2: #ff4d6d;
+    --accent3: #a8ff3e;
+    --text: #e8e8f0;
+    --muted: #6b6b88;
+    --scan-glow: rgba(0,229,255,0.15);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Grid noise overlay */
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background-image:
+      linear-gradient(rgba(0,229,255,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,229,255,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .header {
+    position: sticky; top: 0; z-index: 100;
+    background: rgba(10,10,15,0.92);
+    backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--border);
+    padding: 0 2rem;
+    display: flex; align-items: center; justify-content: space-between;
+    height: 64px;
+  }
+
+  .logo {
+    font-size: 1.4rem; font-weight: 800;
+    letter-spacing: -0.5px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .logo-dot {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 12px var(--accent);
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse {
+    0%,100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(0.8); }
+  }
+
+  .status-bar {
+    display: flex; align-items: center; gap: 1.5rem;
+    font-family: 'DM Mono', monospace; font-size: 0.75rem; color: var(--muted);
+  }
+  .ws-status {
+    display: flex; align-items: center; gap: 6px;
+  }
+  .ws-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--accent2);
+    transition: background 0.3s;
+  }
+  .ws-dot.connected { background: var(--accent3); box-shadow: 0 0 8px var(--accent3); }
+
+  .main {
+    position: relative; z-index: 1;
+    display: grid;
+    grid-template-columns: 1fr 380px;
+    gap: 0;
+    height: calc(100vh - 64px);
+  }
+
+  /* ── Left: Carts panel ── */
+  .carts-panel {
+    padding: 2rem;
+    overflow-y: auto;
+    border-right: 1px solid var(--border);
+  }
+
+  .section-label {
+    font-size: 0.65rem; font-weight: 700;
+    letter-spacing: 3px; text-transform: uppercase;
+    color: var(--muted); margin-bottom: 1.5rem;
+  }
+
+  .no-carts {
+    text-align: center; padding: 4rem 2rem;
+    color: var(--muted); font-size: 0.9rem;
+  }
+  .no-carts .icon { font-size: 3rem; margin-bottom: 1rem; opacity: 0.3; }
+
+  .cart-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+    transition: border-color 0.3s;
+    position: relative;
+    overflow: hidden;
+  }
+  .cart-card.active {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 1px var(--accent), inset 0 0 40px var(--scan-glow);
+  }
+  .cart-card.checkout {
+    border-color: var(--accent3);
+    animation: checkoutFlash 0.5s ease 3;
+  }
+  @keyframes checkoutFlash {
+    0%,100% { background: var(--surface); }
+    50% { background: rgba(168,255,62,0.08); }
+  }
+
+  .cart-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 1rem;
+  }
+  .cart-id {
+    font-family: 'DM Mono', monospace; font-size: 0.8rem;
+    color: var(--accent); letter-spacing: 1px;
+  }
+  .cart-total {
+    font-size: 1.4rem; font-weight: 800;
+    letter-spacing: -0.5px;
+  }
+  .currency { font-size: 0.85rem; color: var(--muted); margin-right: 2px; }
+
+  .cart-items {
+    display: flex; flex-direction: column; gap: 0.5rem;
+  }
+  .cart-item {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0.6rem 0.8rem;
+    background: var(--surface2);
+    border-radius: 8px;
+    font-size: 0.85rem;
+    animation: slideIn 0.3s ease;
+  }
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateX(-10px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+  .item-name { font-weight: 600; }
+  .item-cat {
+    font-size: 0.7rem; color: var(--muted);
+    margin-top: 2px; font-family: 'DM Mono', monospace;
+  }
+  .item-right { text-align: right; }
+  .item-price { font-weight: 700; color: var(--accent); font-family: 'DM Mono', monospace; }
+  .item-qty {
+    font-size: 0.7rem; color: var(--muted);
+    font-family: 'DM Mono', monospace;
+  }
+
+  .cart-empty { color: var(--muted); font-size: 0.85rem; font-style: italic; padding: 0.5rem 0; }
+
+  .checkout-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: rgba(168,255,62,0.1);
+    border: 1px solid var(--accent3);
+    color: var(--accent3);
+    border-radius: 6px;
+    padding: 4px 10px;
+    font-size: 0.7rem; font-weight: 700; letter-spacing: 1px;
+  }
+
+  /* ── Right: Products panel ── */
+  .products-panel {
+    display: flex; flex-direction: column;
+    background: var(--surface);
+  }
+
+  .panel-header {
+    padding: 1.5rem 1.5rem 1rem;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+
+  .product-count {
+    font-family: 'DM Mono', monospace; font-size: 0.75rem; color: var(--muted);
+  }
+
+  .products-list {
+    flex: 1; overflow-y: auto;
+    padding: 1rem;
+    display: flex; flex-direction: column; gap: 0.5rem;
+  }
+
+  .product-item {
+    display: flex; align-items: center; gap: 0.8rem;
+    padding: 0.8rem;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 0.82rem;
+    animation: slideIn 0.3s ease;
+    transition: border-color 0.2s;
+  }
+  .product-item:hover { border-color: var(--muted); }
+
+  .product-cat-pill {
+    font-size: 0.62rem; font-weight: 700; letter-spacing: 1px;
+    text-transform: uppercase;
+    padding: 2px 8px; border-radius: 999px;
+    background: rgba(0,229,255,0.1); color: var(--accent);
+    white-space: nowrap;
+  }
+  .product-info { flex: 1; min-width: 0; }
+  .product-name { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .product-uid { font-family: 'DM Mono', monospace; font-size: 0.65rem; color: var(--muted); }
+  .product-price-tag {
+    font-family: 'DM Mono', monospace; font-weight: 600;
+    color: var(--accent3); font-size: 0.85rem; white-space: nowrap;
+  }
+  .product-stock-tag {
+    font-family: 'DM Mono', monospace; font-weight: 600;
+    color: var(--accent); font-size: 0.72rem; white-space: nowrap;
+    background: rgba(0,229,255,0.08);
+    border: 1px solid rgba(0,229,255,0.18);
+    border-radius: 6px;
+    padding: 4px 7px;
+  }
+  .product-stock-tag.low {
+    color: var(--accent2);
+    border-color: rgba(255,77,109,0.28);
+    background: rgba(255,77,109,0.08);
+  }
+  .btn-del {
+    background: none; border: 1px solid transparent;
+    color: var(--muted); cursor: pointer; border-radius: 6px;
+    padding: 4px 8px; font-size: 0.75rem; transition: all 0.2s;
+    font-family: 'Syne', sans-serif;
+  }
+  .btn-del:hover { border-color: var(--accent2); color: var(--accent2); }
+
+  /* ── Activity feed ── */
+  .activity-panel {
+    border-top: 1px solid var(--border);
+    padding: 1rem 1.5rem;
+    max-height: 160px;
+  }
+  .activity-title {
+    font-size: 0.6rem; font-weight: 700; letter-spacing: 3px;
+    text-transform: uppercase; color: var(--muted); margin-bottom: 0.75rem;
+  }
+  .activity-feed {
+    display: flex; flex-direction: column; gap: 0.35rem;
+    overflow-y: auto; max-height: 100px;
+  }
+  .activity-item {
+    font-family: 'DM Mono', monospace; font-size: 0.7rem;
+    color: var(--muted); display: flex; gap: 0.75rem;
+    animation: fadeIn 0.3s ease;
+  }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+  .activity-time { color: var(--accent); opacity: 0.7; }
+  .activity-text.ok { color: var(--accent3); }
+  .activity-text.err { color: var(--accent2); }
+  .activity-text.info { color: var(--text); }
+
+  /* ── Tabs ── */
+  .tab-bar {
+    display: flex; gap: 0; border-bottom: 1px solid var(--border);
+    padding: 0 1.5rem;
+  }
+  .tab {
+    padding: 0.8rem 1.2rem; font-size: 0.8rem; font-weight: 700;
+    cursor: pointer; border-bottom: 2px solid transparent;
+    margin-bottom: -1px; color: var(--muted); transition: all 0.2s;
+    letter-spacing: 0.5px;
+  }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  /* ── Writer form ── */
+  .writer-form {
+    padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem;
+    flex: 1; overflow-y: auto;
+  }
+  .field { display: flex; flex-direction: column; gap: 0.4rem; }
+  .field label { font-size: 0.7rem; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); }
+  .field input, .field select {
+    background: var(--surface2); border: 1px solid var(--border);
+    color: var(--text); border-radius: 8px; padding: 0.7rem 0.9rem;
+    font-family: 'DM Mono', monospace; font-size: 0.85rem;
+    outline: none; transition: border-color 0.2s;
+  }
+  .field input:focus, .field select:focus { border-color: var(--accent); }
+  .field select option { background: var(--surface2); }
+
+  .btn-write {
+    background: var(--accent); color: #000;
+    border: none; border-radius: 8px;
+    padding: 0.85rem; font-size: 0.9rem; font-weight: 800;
+    cursor: pointer; letter-spacing: 1px;
+    transition: all 0.2s;
+    font-family: 'Syne', sans-serif;
+  }
+  .btn-write:hover { background: #33ecff; box-shadow: 0 0 20px rgba(0,229,255,0.4); }
+
+  .info-box {
+    background: rgba(0,229,255,0.05); border: 1px solid rgba(0,229,255,0.15);
+    border-radius: 8px; padding: 0.8rem 1rem;
+    font-size: 0.78rem; color: var(--muted); line-height: 1.6;
+    font-family: 'DM Mono', monospace;
+  }
+  .info-box strong { color: var(--accent); }
+
+  .connection-summary {
+    display: grid; grid-template-columns: repeat(3, 1fr);
+    gap: 0.6rem; padding: 1rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .connection-stat {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.8rem;
+    min-width: 0;
+  }
+  .connection-stat strong {
+    display: block;
+    color: var(--accent3);
+    font-family: 'DM Mono', monospace;
+    font-size: 1.2rem;
+  }
+  .connection-stat span {
+    display: block;
+    margin-top: 0.25rem;
+    color: var(--muted);
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+  .connections-list {
+    flex: 1; overflow-y: auto;
+    padding: 1rem;
+    display: flex; flex-direction: column; gap: 0.65rem;
+  }
+  .connection-item {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 0.75rem;
+    align-items: start;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.85rem;
+  }
+  .connection-dot {
+    width: 9px; height: 9px; border-radius: 50%;
+    background: var(--accent2);
+    margin-top: 4px;
+  }
+  .connection-dot.online {
+    background: var(--accent3);
+    box-shadow: 0 0 8px var(--accent3);
+  }
+  .connection-top {
+    display: flex; justify-content: space-between; gap: 0.8rem;
+    align-items: center;
+  }
+  .connection-role {
+    color: var(--accent);
+    font-size: 0.66rem;
+    font-weight: 800;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+  .connection-id {
+    margin-top: 0.25rem;
+    color: var(--text);
+    font-weight: 700;
+    overflow-wrap: anywhere;
+  }
+  .connection-meta {
+    margin-top: 0.45rem;
+    display: grid;
+    gap: 0.25rem;
+    color: var(--muted);
+    font-family: 'DM Mono', monospace;
+    font-size: 0.68rem;
+  }
+  .connection-chip {
+    color: var(--accent3);
+    font-family: 'DM Mono', monospace;
+    font-size: 0.65rem;
+    white-space: nowrap;
+  }
+
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+  /* scan flash on the page */
+  .scan-flash {
+    position: fixed; inset: 0; pointer-events: none; z-index: 999;
+    background: rgba(0,229,255,0.06);
+    animation: scanFlash 0.4s ease forwards;
+  }
+  @keyframes scanFlash { from { opacity: 1; } to { opacity: 0; } }
+</style>
+</head>
+<body>
+
+<header class="header">
+  <div class="logo">
+    <div class="logo-dot"></div>
+    SmartCart <span style="color:var(--muted);font-weight:400;font-size:0.85rem;margin-left:4px">OPERATOR</span>
+  </div>
+  <div class="status-bar">
+    <div class="ws-status">
+      <div class="ws-dot" id="wsDot"></div>
+      <span id="wsLabel">CONNECTING…</span>
+    </div>
+    <span id="deviceCount" style="font-size:0.7rem">0 DEVICES</span>
+    <span id="clockEl" style="font-size:0.7rem"></span>
+  </div>
+</header>
+
+<div class="main">
+  <!-- Left: live carts -->
+  <div class="carts-panel">
+    <div class="section-label">Live Carts</div>
+    <div id="cartsContainer">
+      <div class="no-carts">
+        <div class="icon">🛒</div>
+        <div>Waiting for cart activity…</div>
+        <div style="margin-top:0.5rem;font-size:0.75rem;color:var(--muted)">Connect your ESP32 cart device</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right: products + writer -->
+  <div class="products-panel">
+    <div class="tab-bar">
+      <div class="tab active" onclick="switchTab('products',this)">Products</div>
+      <div class="tab" onclick="switchTab('writer',this)">Write Tag</div>
+      <div class="tab" onclick="switchTab('connections',this)">Info</div>
+    </div>
+
+    <!-- Products list tab -->
+    <div id="tab-products" style="display:flex;flex-direction:column;flex:1;min-height:0">
+      <div class="panel-header">
+        <div class="section-label" style="margin:0">Product Catalog</div>
+        <div class="product-count" id="productCount">0 products</div>
+      </div>
+      <div class="products-list" id="productsList">
+        <div style="text-align:center;padding:2rem;color:var(--muted);font-size:0.85rem">
+          No products yet.<br>Use the <strong style="color:var(--accent)">Write Tag</strong> tab to add products.
+        </div>
+      </div>
+      <div class="activity-panel">
+        <div class="activity-title">Activity Log</div>
+        <div class="activity-feed" id="activityFeed"></div>
+      </div>
+    </div>
+
+    <!-- Writer tab -->
+    <div id="tab-writer" style="display:none;flex-direction:column;flex:1;min-height:0;overflow-y:auto">
+      <div class="writer-form">
+        <div class="info-box">
+          <strong>How to write a tag:</strong><br>
+          1. Fill in product details below<br>
+          2. Click "WRITE TO TAG"<br>
+          3. The <strong>Writer ESP32</strong> will receive the data and write it to the next scanned RFID tag.
+        </div>
+
+        <div class="field">
+          <label>Product Name</label>
+          <input type="text" id="wName" placeholder="e.g. Coca-Cola 500ml">
+        </div>
+        <div class="field">
+          <label>Price (₹)</label>
+          <input type="number" id="wPrice" placeholder="e.g. 40" step="0.01" min="0">
+        </div>
+        <div class="field">
+          <label>Stock Quantity</label>
+          <input type="number" id="wStock" placeholder="e.g. 200" step="1" min="0">
+        </div>
+        <div class="field">
+          <label>Category</label>
+          <select id="wCategory">
+            <option value="Beverages">Beverages</option>
+            <option value="Snacks">Snacks</option>
+            <option value="Dairy">Dairy</option>
+            <option value="Bakery">Bakery</option>
+            <option value="Produce">Produce</option>
+            <option value="Frozen">Frozen</option>
+            <option value="Household">Household</option>
+            <option value="Personal Care">Personal Care</option>
+            <option value="General">General</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Tag UID (leave blank — filled after scan)</label>
+          <input type="text" id="wUID" placeholder="Auto-filled when Writer ESP32 scans tag">
+        </div>
+        <button class="btn-write" onclick="sendWriteCommand()">⬡ WRITE TO TAG</button>
+        <div id="writeStatus" style="font-size:0.8rem;text-align:center;color:var(--muted);font-family:'DM Mono',monospace;min-height:1.5rem"></div>
+      </div>
+    </div>
+
+    <!-- Info tab -->
+    <div id="tab-connections" style="display:none;flex-direction:column;flex:1;min-height:0">
+      <div class="panel-header">
+        <div class="section-label" style="margin:0">Connection Info</div>
+        <div class="product-count" id="connectionCount">0 online</div>
+      </div>
+      <div class="connection-summary">
+        <div class="connection-stat">
+          <strong id="dashboardCount">0</strong>
+          <span>Dashboard</span>
+        </div>
+        <div class="connection-stat">
+          <strong id="cartCount">0</strong>
+          <span>Carts</span>
+        </div>
+        <div class="connection-stat">
+          <strong id="writerCount">0</strong>
+          <span>Writers</span>
+        </div>
+      </div>
+      <div class="connections-list" id="connectionsList">
+        <div style="text-align:center;padding:2rem;color:var(--muted);font-size:0.85rem">
+          Waiting for devices to connect.
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const WS_URL = (() => {
+  if (window.location.protocol === 'file:') return 'ws://localhost:3000';
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const host = window.location.hostname || 'localhost';
+  const port = window.location.port || '3000';
+  return `${protocol}//${host}:${port}`;
+})();
+
+let ws;
+let state = { products: {}, carts: {}, connections: [], connectionInfoSupported: false };
+
+// ── Clock ──────────────────────────────────────────────────────────────────
+const clockEl = document.getElementById('clockEl');
+setInterval(() => {
+  clockEl.textContent = new Date().toLocaleTimeString('en-IN', { hour12: false });
+}, 1000);
+
+// ── WebSocket ──────────────────────────────────────────────────────────────
+function connect() {
+  ws = new WebSocket(WS_URL);
+  const dot = document.getElementById('wsDot');
+  const label = document.getElementById('wsLabel');
+
+  ws.onopen = () => {
+    dot.classList.add('connected');
+    label.textContent = 'CONNECTED';
+    ws.send(JSON.stringify({ type: 'DASHBOARD_HELLO', deviceId: 'OPERATOR-DASHBOARD' }));
+    log('WebSocket connected', 'info');
+  };
+
+  ws.onclose = () => {
+    dot.classList.remove('connected');
+    label.textContent = 'RECONNECTING…';
+    setTimeout(connect, 3000);
+  };
+
+  ws.onerror = () => {
+    dot.classList.remove('connected');
+    label.textContent = 'ERROR';
+  };
+
+  ws.onmessage = ({ data }) => {
+    const msg = JSON.parse(data);
+    handleMessage(msg);
+  };
+}
+
+function handleMessage(msg) {
+  switch (msg.type) {
+    case 'STATE':
+      state.products = msg.products || {};
+      state.carts = msg.carts || {};
+      state.connectionInfoSupported = Array.isArray(msg.connections);
+      state.connections = msg.connections || [];
+      renderProducts();
+      renderCarts();
+      renderConnections();
+      break;
+
+    case 'CONNECTIONS_UPDATE':
+      state.connectionInfoSupported = true;
+      state.connections = msg.connections || [];
+      renderConnections();
+      break;
+
+    case 'CART_UPDATE':
+      state.carts[msg.cart.cartId] = msg.cart;
+      renderCarts();
+      flashScan();
+      break;
+
+    case 'CART_SCAN_ERROR':
+      log(`Cart ${msg.cartId || 'unknown'}: ${msg.error || 'Scan error'} (${msg.uid})`, 'err');
+      break;
+
+    case 'PRODUCT_UPDATE':
+      state.products[msg.product.uid] = msg.product;
+      renderProducts();
+      if (msg.reason === 'stock') {
+        log(`Stock updated: ${msg.product.name} has ${msg.product.stock ?? 0} left`, 'info');
+      } else {
+        log(`Product saved: ${msg.product.name}`, 'ok');
+        document.getElementById('writeStatus').textContent = `✓ "${msg.product.name}" saved, stock ${msg.product.stock ?? 0}`;
+        document.getElementById('wUID').value = msg.product.uid;
+      }
+      break;
+
+    case 'PRODUCT_DELETED':
+      delete state.products[msg.uid];
+      renderProducts();
+      log(`Product deleted: ${msg.uid}`, 'info');
+      break;
+
+    case 'PENDING_WRITE_ACK':
+      document.getElementById('writeStatus').textContent = msg.ok
+        ? `Sent to ${msg.writerCount} Writer ESP32 device${msg.writerCount !== 1 ? 's' : ''}`
+        : 'No Writer ESP32 connected';
+      log(msg.ok ? 'Writer command delivered' : 'No writer connected', msg.ok ? 'ok' : 'err');
+      break;
+
+    case 'CHECKOUT':
+      if (state.carts[msg.cart.cartId]) {
+        const el = document.getElementById(`cart-${msg.cart.cartId}`);
+        if (el) el.classList.add('checkout');
+      }
+      log(`Checkout: Cart ${msg.cart.cartId} — ₹${msg.cart.total.toFixed(2)}`, 'ok');
+      break;
+
+    // Writer ESP32 sent us the UID of a newly scanned tag
+    case 'TAG_SCANNED_FOR_WRITE':
+      document.getElementById('wUID').value = msg.uid;
+      document.getElementById('writeStatus').textContent = `Tag ready: ${msg.uid} — fill details and click WRITE`;
+      log(`Writer scanned tag: ${msg.uid}`, 'info');
+      break;
+  }
+}
+
+// ── Render carts ───────────────────────────────────────────────────────────
+function renderCarts() {
+  const container = document.getElementById('cartsContainer');
+  const carts = Object.values(state.carts);
+
+  if (!carts.length) {
+    container.innerHTML = `<div class="no-carts"><div class="icon">🛒</div><div>Waiting for cart activity…</div></div>`;
+    return;
+  }
+
+  container.innerHTML = carts.map(cart => `
+    <div class="cart-card ${cart.items.length ? 'active' : ''}" id="cart-${cart.cartId}">
+      <div class="cart-header">
+        <div>
+          <div class="cart-id">CART / ${cart.cartId}</div>
+          <div style="font-size:0.75rem;color:var(--muted);margin-top:2px">${cart.items.length} item${cart.items.length !== 1 ? 's' : ''}</div>
+        </div>
+        <div>
+          <div class="cart-total"><span class="currency">₹</span>${cart.total.toFixed(2)}</div>
+        </div>
+      </div>
+      <div class="cart-items">
+        ${cart.items.length
+          ? cart.items.map(item => `
+              <div class="cart-item">
+                <div>
+                  <div class="item-name">${item.name}</div>
+                  <div class="item-cat">${item.category}</div>
+                </div>
+                <div class="item-right">
+                  <div class="item-price">₹${(item.price * item.qty).toFixed(2)}</div>
+                  <div class="item-qty">×${item.qty} @ ₹${item.price}</div>
+                </div>
+              </div>`).join('')
+          : `<div class="cart-empty">Cart is empty</div>`
+        }
+      </div>
+    </div>`).join('');
+}
+
+// ── Render products ────────────────────────────────────────────────────────
+function renderProducts() {
+  const list = document.getElementById('productsList');
+  const prods = Object.values(state.products);
+  document.getElementById('productCount').textContent = `${prods.length} product${prods.length !== 1 ? 's' : ''}`;
+
+  if (!prods.length) {
+    list.innerHTML = `<div style="text-align:center;padding:2rem;color:var(--muted);font-size:0.85rem">No products yet.<br>Use <strong style="color:var(--accent)">Write Tag</strong> tab to add.</div>`;
+    return;
+  }
+
+  list.innerHTML = prods.map(p => {
+    const stock = Number.isFinite(Number(p.stock)) ? Math.max(0, parseInt(p.stock, 10)) : 0;
+    return `
+      <div class="product-item">
+        <span class="product-cat-pill">${p.category}</span>
+        <div class="product-info">
+          <div class="product-name">${p.name}</div>
+          <div class="product-uid">${p.uid}</div>
+        </div>
+        <div class="product-stock-tag ${stock <= 5 ? 'low' : ''}">${stock} left</div>
+        <div class="product-price-tag">₹${parseFloat(p.price).toFixed(2)}</div>
+        <button class="btn-del" onclick="deleteProduct('${p.uid}')">✕</button>
+      </div>`;
+  }).join('');
+}
+
+function renderConnections() {
+  const list = document.getElementById('connectionsList');
+  if (!list) return;
+
+  if (!state.connectionInfoSupported) {
+    document.getElementById('deviceCount').textContent = 'RESTART SERVER';
+    document.getElementById('connectionCount').textContent = 'server old';
+    document.getElementById('dashboardCount').textContent = '-';
+    document.getElementById('cartCount').textContent = '-';
+    document.getElementById('writerCount').textContent = '-';
+    list.innerHTML = `<div style="text-align:center;padding:2rem;color:var(--muted);font-size:0.85rem;line-height:1.6">Connection tracking is not active yet.<br>Restart the Node server to load the updated server.js.</div>`;
+    return;
+  }
+
+  const connections = state.connections || [];
+  const deviceConnections = connections.filter(item => item.role === 'cart' || item.role === 'writer');
+  const counts = connections.reduce((acc, item) => {
+    acc[item.role] = (acc[item.role] || 0) + 1;
+    return acc;
+  }, {});
+
+  document.getElementById('deviceCount').textContent =
+    `${deviceConnections.length} DEVICE${deviceConnections.length !== 1 ? 'S' : ''}`;
+  document.getElementById('connectionCount').textContent =
+    `${connections.length} online`;
+  document.getElementById('dashboardCount').textContent = counts.dashboard || 0;
+  document.getElementById('cartCount').textContent = counts.cart || 0;
+  document.getElementById('writerCount').textContent = counts.writer || 0;
+
+  if (!connections.length) {
+    list.innerHTML = `<div style="text-align:center;padding:2rem;color:var(--muted);font-size:0.85rem">Waiting for devices to connect.</div>`;
+    return;
+  }
+
+  list.innerHTML = connections.map(connection => {
+    const role = formatRole(connection.role);
+    const deviceId = escapeHTML(connection.deviceId || connection.connectionId || 'UNKNOWN');
+    const cartId = connection.cartId ? `<div>Cart ID: ${escapeHTML(connection.cartId)}</div>` : '';
+    return `
+      <div class="connection-item">
+        <div class="connection-dot ${connection.state === 'online' ? 'online' : ''}"></div>
+        <div>
+          <div class="connection-top">
+            <div class="connection-role">${role}</div>
+            <div class="connection-chip">${escapeHTML(connection.state || 'online')}</div>
+          </div>
+          <div class="connection-id">${deviceId}</div>
+          <div class="connection-meta">
+            <div>Socket: ${escapeHTML(connection.connectionId || '-')}</div>
+            ${cartId}
+            <div>IP: ${escapeHTML(connection.remoteAddress || 'unknown')}</div>
+            <div>Connected: ${formatTime(connection.connectedAt)}</div>
+            <div>Last seen: ${formatTime(connection.lastSeen)}</div>
+          </div>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function formatRole(role) {
+  const labels = {
+    dashboard: 'Dashboard',
+    cart: 'Cart ESP32',
+    writer: 'Writer ESP32',
+    unknown: 'Unknown'
+  };
+  return labels[role] || escapeHTML(role || 'Unknown');
+}
+
+function formatTime(value) {
+  if (!value) return '-';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '-';
+  return date.toLocaleTimeString('en-IN', { hour12: false });
+}
+
+function escapeHTML(value) {
+  return String(value)
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#039;');
+}
+
+// ── Actions ────────────────────────────────────────────────────────────────
+function deleteProduct(uid) {
+  if (!confirm(`Delete product ${state.products[uid]?.name}?`)) return;
+  if (!ws || ws.readyState !== WebSocket.OPEN) {
+    log('Cannot delete: WebSocket disconnected', 'err');
+    return;
+  }
+  ws.send(JSON.stringify({ type: 'DELETE_PRODUCT', uid }));
+}
+
+function sendWriteCommand() {
+  const name = document.getElementById('wName').value.trim();
+  const price = parseFloat(document.getElementById('wPrice').value);
+  const stock = parseInt(document.getElementById('wStock').value, 10);
+  const category = document.getElementById('wCategory').value;
+  const uid = document.getElementById('wUID').value.trim();
+
+  if (!name || isNaN(price) || isNaN(stock) || stock < 0) {
+    document.getElementById('writeStatus').textContent = '⚠ Fill in name, price, and stock';
+    return;
+  }
+
+  if (!ws || ws.readyState !== WebSocket.OPEN) {
+    document.getElementById('writeStatus').textContent = 'WebSocket disconnected';
+    log('Cannot write: WebSocket disconnected', 'err');
+    return;
+  }
+
+  document.getElementById('writeStatus').textContent = '⏳ Sending to Writer ESP32…';
+
+  // Send PENDING_WRITE — Writer ESP32 will pick this up
+  ws.send(JSON.stringify({ type: 'PENDING_WRITE', name, price, stock, category, uid }));
+  log(`Write command sent: ${name} @ ₹${price}, stock ${stock}`, 'ok');
+}
+
+// ── Tabs ───────────────────────────────────────────────────────────────────
+function switchTab(tab, el) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('tab-products').style.display = tab === 'products' ? 'flex' : 'none';
+  document.getElementById('tab-writer').style.display = tab === 'writer' ? 'flex' : 'none';
+  document.getElementById('tab-connections').style.display = tab === 'connections' ? 'flex' : 'none';
+}
+
+// ── Activity log ───────────────────────────────────────────────────────────
+function log(text, type = 'info') {
+  const feed = document.getElementById('activityFeed');
+  const time = new Date().toLocaleTimeString('en-IN', { hour12: false });
+  const el = document.createElement('div');
+  el.className = 'activity-item';
+  el.innerHTML = `<span class="activity-time">${time}</span><span class="activity-text ${type}">${text}</span>`;
+  feed.prepend(el);
+  if (feed.children.length > 30) feed.removeChild(feed.lastChild);
+}
+
+function flashScan() {
+  const el = document.createElement('div');
+  el.className = 'scan-flash';
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 400);
+}
+
+connect();
+</script>
+</body>
+</html>

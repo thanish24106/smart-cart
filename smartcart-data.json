@@ -1,0 +1,17 @@
+{
+  "products": {
+    "536F874A420001": {
+      "uid": "536F874A420001",
+      "name": "Chemist at play - Body wash",
+      "price": 399,
+      "category": "Personal Care"
+    }
+  },
+  "carts": {
+    "CART-001": {
+      "cartId": "CART-001",
+      "items": [],
+      "total": 0
+    }
+  }
+}
